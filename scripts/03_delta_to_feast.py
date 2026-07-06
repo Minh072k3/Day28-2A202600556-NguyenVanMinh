@@ -22,6 +22,7 @@ def load_from_delta_and_push_feast():
             "processed": True
         }))
 
-    print(f"Integration 3+4 OK: Delta Lake → Feast (Redis) — {len(df)} features stored")
+    print(f"Integration 3+4 OK: Delta Lake -> Feast (Redis) - {len(df)} features stored")
+
 
 load_from_delta_and_push_feast()

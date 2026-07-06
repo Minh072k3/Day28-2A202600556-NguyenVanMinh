@@ -49,14 +49,25 @@ check("Redis reachable", lambda:
 
 print("\n=== KAFKA ===")
 def check_kafka_topics():
+    import subprocess
+    # Find container name dynamically
+    proc = subprocess.run(
+        ["docker", "ps", "--filter", "name=kafka", "--format", "{{.Names}}"],
+        capture_output=True, text=True
+    )
+    container_name = proc.stdout.strip().split("\n")[0]
+    if not container_name:
+        container_name = "lab28-kafka-1"
+        
     result = subprocess.run(
-        ["docker", "exec", "lab28-kafka-1", "kafka-topics", "--list",
+        ["docker", "exec", container_name, "kafka-topics", "--list",
          "--bootstrap-server", "localhost:9092"],
         capture_output=True, text=True
     )
     assert "data.raw" in result.stdout
 
 check("Kafka topics exist", check_kafka_topics)
+
 
 # Tổng kết
 passed = sum(1 for v in results.values() if v == "PASS")

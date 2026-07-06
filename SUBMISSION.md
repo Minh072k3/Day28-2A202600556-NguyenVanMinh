@@ -81,14 +81,31 @@ Nộp link repo GitHub qua LMS
 ## 5 Câu Hỏi Cần Trả Lời Khi Nộp
 
 1. **Phân tích các trade-offs trong thiết kế kiến trúc AI platform của bạn. Bạn đã cân bằng giữa performance, reliability, và maintainability như thế nào?**
+   - **Performance vs Cost**: Chuyển phần Embedding và LLM inference lên Kaggle GPU giúp giải phóng tài nguyên local và tiết kiệm chi phí phần cứng (cost efficiency), đánh đổi lại là độ trễ truyền tải qua mạng (tunnel latency) tăng thêm khoảng 50-100ms.
+   - **Reliability vs Complexity**: Sử dụng Kafka + Prefect giúp luồng xử lý dữ liệu cực kỳ bền bỉ (hỗ trợ backpressure, auto-retry, buffering), nhưng đánh đổi lại là độ phức tạp trong vận hành hạ tầng (phải quản lý Kafka, Zookeeper, Orion DB, Redis).
+   - **Maintainability**: Tách biệt rõ ràng các lớp dữ liệu (Kafka, Delta Lake), lưu trữ đặc trưng (Feast Redis), vector DB (Qdrant) và phục vụ (API Gateway). Thiết kế đóng gói container hóa hoàn toàn qua Docker Compose giúp dễ dàng bảo trì và nâng cấp từng service độc lập mà không ảnh hưởng tới toàn hệ thống.
 
 2. **Trong kiến trúc hybrid (Local + Kaggle), bạn xử lý ngắt kết nối giữa local và Kaggle như thế nào? Có cơ chế fallback không?**
+   - **Đọc/ghi dữ liệu (Ingestion)**: Dữ liệu thô luôn được lưu trữ an toàn trong hàng đợi của Kafka topic `data.raw`. Nếu kết nối tới Kaggle (Embedding) bị đứt, Prefect flow tạm dừng hoặc retry. Khi kết nối phục hồi, consumer tiếp tục consume từ offset trước đó, đảm bảo không mất mát dữ liệu (zero data loss).
+   - **Luồng Inference (API Gateway)**: API Gateway áp dụng timeout (30s) và bắt các ngoại lệ kết nối. Khi mất kết nối tới vLLM hoặc Embedding trên Kaggle, hệ thống sẽ thực hiện fallback bằng cách trả về câu trả lời mặc định, câu trả lời từ bộ nhớ đệm (cache) trong Redis, hoặc đưa ra thông điệp thân thiện thay vì làm sập toàn bộ gateway.
 
 3. **Giải thích cách event-driven architecture với Kafka giúp decouple các components trong AI platform của bạn.**
+   - **Decouple hoàn toàn Ingestion và Processing**: Bộ phận thu thập dữ liệu (Producer) chỉ việc đẩy dữ liệu vào topic `data.raw` và kết thúc nhiệm vụ. Nó không cần biết khi nào dữ liệu được nhúng (embed), lưu trữ vào Qdrant hay Delta Lake ra sao.
+   - **Quản lý Backpressure**: Giúp điều hòa tốc độ giữa bên sản xuất dữ liệu (tốc độ cao) và bên xử lý dữ liệu (tốc độ giới hạn bởi GPU/CPU).
+   - **Hỗ trợ Multi-consumer**: Cho phép nhiều ứng dụng hạ nguồn cùng đăng ký tiêu thụ một nguồn dữ liệu thô cho các tác vụ khác nhau (ví dụ: Prefect lưu Delta Lake, Elasticsearch index dữ liệu, Spark phân tích thống kê) mà không cần chỉnh sửa mã nguồn của Producer.
 
 4. **Bạn đã implement observability như thế nào? Logs, metrics, và traces được thu thập và visualized ra sao?**
+   - **Metrics**: API Gateway tích hợp `prometheus-fastapi-instrumentator` để tự động expose metrics tại endpoint `/metrics`. Prometheus server thực hiện scrape định kỳ mỗi 15s và Grafana hiển thị biểu đồ thời gian thực (request rate, p95 latency, error rate).
+   - **Logs**: Sử dụng cơ chế stdout/stderr logging tiêu chuẩn của Docker. Toàn bộ logs từ các container được lưu trữ tập trung và có thể dễ dàng kiểm tra bằng lệnh `docker compose logs`.
+   - **Traces & Experiment Tracking**:
+     - Traces được cấu hình truyền về nền tảng LangSmith để trực quan hóa chi tiết từng bước LLM invocation, latency và tokens sử dụng.
+     - Model metadata, hyperparameters và latency của serving layer được ghi nhận chi tiết thông qua MLflow Tracking (lưu tại `./mlruns` hoặc DagsHub) hỗ trợ theo dõi phiên bản model.
 
 5. **Nếu một service trong stack (ví dụ: Qdrant hoặc Kafka) bị crash, hệ thống của bạn sẽ xử lý như thế nào? Có graceful degradation không?**
+   - **Qdrant bị crash**: API Gateway không thực hiện được vector search. Hệ thống sẽ áp dụng cơ chế graceful degradation bằng cách bỏ qua context retrieval hoặc lấy tài liệu thay thế từ Feast (Redis online store) qua khóa tài liệu (document ID) để gửi trực tiếp tới LLM, giữ cho ứng dụng vẫn phản hồi câu trả lời thay vì báo lỗi 500 sập hệ thống.
+   - **Kafka bị crash**: Các script đẩy logs mới sẽ tạm dừng hoặc buffering cục bộ. Tuy nhiên, luồng inference chính (API Gateway gọi Qdrant và vLLM) vẫn hoạt động hoàn toàn bình thường do hai luồng này được decoupled hoàn toàn thông qua kiến trúc hướng sự kiện.
+   - **Redis (Feast) bị crash**: Hệ thống có cơ chế fallback tự động truy vấn trực tiếp dữ liệu lịch sử từ các tệp parquet trong Delta Lake thay vì Redis online store.
+
 
 ## Câu Hỏi Thêm?
 Liên hệ giảng viên qua LMS hoặc office hours.

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Production Readiness Checklist Results</title>
+</head>
+<body style="background-color: #1e1e1e; color: #d4d4d4; font-family: 'Consolas', 'Courier New', monospace; padding: 30px; font-size: 16px; line-height: 1.5;">
+    <h2 style="color: #4fc1ff; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;">Production Readiness Checklist Results</h2>
+    <pre style="white-space: pre-wrap; word-wrap: break-word;">
+=== RELIABILITY ===
+  [PASS] Health check endpoint
+  [PASS] API Gateway responds
+
+=== OBSERVABILITY ===
+  [PASS] Prometheus up
+  [PASS] Grafana up
+  [PASS] Metrics endpoint exposed
+
+=== SECURITY ===
+  [PASS] Unauthorized request rejected
+
+=== VECTOR STORE ===
+  [PASS] Qdrant healthy
+  [PASS] Collection exists
+
+=== FEATURE STORE ===
+  [PASS] Redis reachable
+
+=== KAFKA ===
+  [PASS] Kafka topics exist
+
+========================================
+Production Readiness Score: 10/10 = 100%
+Target: &gt;80% ù Status: READY
+</pre>
+</body>
+</html>
